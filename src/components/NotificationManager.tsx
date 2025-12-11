@@ -80,9 +80,11 @@ export function NotificationManager() {
         }
 
         try {
-            new Notification('Teste Local 🏠', {
+            const registration = await navigator.serviceWorker.ready
+            await registration.showNotification('Teste Local 🏠', {
                 body: 'Se você viu isso, o navegador consegue exibir notificações!',
-                icon: '/pwa-192x192.png'
+                icon: '/pwa-192x192.png',
+                vibrate: [200, 100, 200]
             })
             setModalMessage({ title: 'Enviado Localmente', body: 'Uma notificação deve ter aparecido agora mesmo.' })
         } catch (e: any) {
