@@ -166,9 +166,9 @@ export function Dashboard() {
                         upcomingPayments.map((payment) => (
                             <div
                                 key={payment.id}
-                                className="p-4 rounded-xl bg-card border border-border hover:bg-secondary/50 transition-colors flex items-center justify-between"
+                                className="p-4 rounded-xl bg-card border border-border hover:bg-secondary/50 transition-colors flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                             >
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-4 w-full sm:w-auto">
                                     <div className={`p-3 rounded-full ${payment.type === 'invoice' ? 'bg-primary/10 text-primary' : 'bg-orange-500/10 text-orange-500'}`}>
                                         {payment.type === 'invoice' ? <CreditCard size={24} /> : <DollarSign size={24} />}
                                     </div>
@@ -182,7 +182,7 @@ export function Dashboard() {
                                         </p>
                                     </div>
                                 </div>
-                                <div className="text-right">
+                                <div className="w-full sm:w-auto flex flex-row sm:flex-col justify-between sm:justify-end items-center sm:items-end">
                                     <p className="font-bold text-lg">
                                         R$ {Number(payment.amount).toFixed(2)}
                                     </p>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { Modal } from '../components/Modal';
 
 export function AuthPage() {
     const [loading, setLoading] = useState(false);
@@ -9,6 +10,7 @@ export function AuthPage() {
     const [password, setPassword] = useState('');
     const [isSignUp, setIsSignUp] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [modalMessage, setModalMessage] = useState<{ title: string, body: string } | null>(null);
     const navigate = useNavigate();
 
     const handleAuth = async (e: React.FormEvent) => {
@@ -23,7 +25,7 @@ export function AuthPage() {
                     password,
                 });
                 if (error) throw error;
-                alert('Verifique seu email para confirmar a conta!');
+                setModalMessage({ title: 'Sucesso', body: 'Verifique seu email para confirmar a conta!' });
             } else {
                 const { error } = await supabase.auth.signInWithPassword({
                     email,
@@ -41,6 +43,22 @@ export function AuthPage() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
+            <Modal
+                isOpen={!!modalMessage}
+                onClose={() => setModalMessage(null)}
+                title={modalMessage?.title || ''}
+            >
+                <p>{modalMessage?.body}</p>
+                <div className="mt-6 flex justify-end">
+                    <button
+                        onClick={() => setModalMessage(null)}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm"
+                    >
+                        OK
+                    </button>
+                </div>
+            </Modal>
+
             <div className="w-full max-w-md space-y-8">
                 <div className="text-center">
                     <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent mb-2">

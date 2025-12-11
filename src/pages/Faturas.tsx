@@ -5,6 +5,7 @@ import { Database } from '../lib/database.types';
 import { Plus, CreditCard as CardIcon, DollarSign, Edit2, Trash2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Modal, ConfirmModal } from '../components/Modal';
 
 type CreditCard = Database['public']['Tables']['credit_cards']['Row'];
 type Invoice = Database['public']['Tables']['invoices']['Row'];
@@ -20,6 +21,10 @@ export function Faturas() {
     const [showAddDebt, setShowAddDebt] = useState(false);
     const [editingCard, setEditingCard] = useState<CreditCard | null>(null);
     const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
+
+    // Custom Feedback Modals
+    const [modalMessage, setModalMessage] = useState<{ title: string, body: string } | null>(null);
+    const [deleteConfirmation, setDeleteConfirmation] = useState<{ type: 'card' | 'debt', id: string } | null>(null);
 
     const [newCard, setNewCard] = useState({
         name: '',
@@ -89,6 +94,7 @@ export function Faturas() {
             setShowAddCard(false);
             setNewCard({ name: '', closing_day: 1, due_day: 10, limit_amount: 1000 });
             fetchCards();
+            setModalMessage({ title: 'Sucesso', body: 'Cartão adicionado com sucesso!' });
         }
     };
 
@@ -109,16 +115,19 @@ export function Faturas() {
         if (!error) {
             setEditingCard(null);
             fetchCards();
+            setModalMessage({ title: 'Sucesso', body: 'Cartão atualizado com sucesso!' });
         }
     };
 
-    const handleDeleteCard = async (id: string) => {
-        if (!confirm('Tem certeza que deseja excluir este cartão? Todas as faturas relacionadas também serão excluídas.')) return;
+    const handleDeleteCard = async () => {
+        if (!deleteConfirmation || deleteConfirmation.type !== 'card') return;
 
-        const { error } = await supabase.from('credit_cards').delete().eq('id', id);
+        const { error } = await supabase.from('credit_cards').delete().eq('id', deleteConfirmation.id);
         if (!error) {
             fetchCards();
+            setModalMessage({ title: 'Removido', body: 'Cartão removido com sucesso.' });
         }
+        setDeleteConfirmation(null);
     };
 
     const handleAddDebt = async (e: React.FormEvent) => {
@@ -149,6 +158,7 @@ export function Faturas() {
                 specific_due_date: ''
             });
             fetchDebts();
+            setModalMessage({ title: 'Sucesso', body: 'Empréstimo adicionado!' });
         }
     };
 
@@ -172,16 +182,19 @@ export function Faturas() {
         if (!error) {
             setEditingDebt(null);
             fetchDebts();
+            setModalMessage({ title: 'Sucesso', body: 'Empréstimo atualizado!' });
         }
     };
 
-    const handleDeleteDebt = async (id: string) => {
-        if (!confirm('Tem certeza que deseja excluir este empréstimo?')) return;
+    const handleDeleteDebt = async () => {
+        if (!deleteConfirmation || deleteConfirmation.type !== 'debt') return;
 
-        const { error } = await supabase.from('debts').delete().eq('id', id);
+        const { error } = await supabase.from('debts').delete().eq('id', deleteConfirmation.id);
         if (!error) {
             fetchDebts();
+            setModalMessage({ title: 'Removido', body: 'Empréstimo removido com sucesso.' });
         }
+        setDeleteConfirmation(null);
     };
 
     const handleAddInvoice = async (e: React.FormEvent, cardId: string) => {
@@ -206,7 +219,7 @@ export function Faturas() {
         if (!error) {
             setShowAddInvoice(null);
             setNewInvoice({ month: new Date().getMonth() + 1, year: new Date().getFullYear(), amount: 0 });
-            alert('Fatura adicionada!');
+            setModalMessage({ title: 'Fatura Adicionada', body: 'A fatura foi registrada com sucesso.' });
         }
     };
 
@@ -232,6 +245,35 @@ export function Faturas() {
 
                 <NotificationManager />
             </div>
+
+            <Modal
+                isOpen={!!modalMessage}
+                onClose={() => setModalMessage(null)}
+                title={modalMessage?.title || ''}
+            >
+                <p>{modalMessage?.body}</p>
+                <div className="mt-6 flex justify-end">
+                    <button
+                        onClick={() => setModalMessage(null)}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm"
+                    >
+                        OK
+                    </button>
+                </div>
+            </Modal>
+
+            <ConfirmModal
+                isOpen={!!deleteConfirmation}
+                onClose={() => setDeleteConfirmation(null)}
+                onConfirm={deleteConfirmation?.type === 'card' ? handleDeleteCard : handleDeleteDebt}
+                title={deleteConfirmation?.type === 'card' ? "Excluir Cartão" : "Excluir Empréstimo"}
+                description={deleteConfirmation?.type === 'card'
+                    ? "Tem certeza que deseja excluir este cartão? Todas as faturas relacionadas também serão excluídas."
+                    : "Tem certeza que deseja excluir este empréstimo?"
+                }
+                confirmText="Excluir"
+                variant="danger"
+            />
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-border overflow-x-auto pb-1">
@@ -344,7 +386,7 @@ export function Faturas() {
                                             <Edit2 size={18} />
                                         </button>
                                         <button
-                                            onClick={() => handleDeleteCard(card.id)}
+                                            onClick={() => setDeleteConfirmation({ type: 'card', id: card.id })}
                                             className="text-muted-foreground hover:text-destructive transition-colors"
                                         >
                                             <Trash2 size={18} />
@@ -589,7 +631,7 @@ export function Faturas() {
                                                 <Edit2 size={18} />
                                             </button>
                                             <button
-                                                onClick={() => handleDeleteDebt(debt.id)}
+                                                onClick={() => setDeleteConfirmation({ type: 'debt', id: debt.id })}
                                                 className="text-muted-foreground hover:text-destructive transition-colors"
                                             >
                                                 <Trash2 size={18} />

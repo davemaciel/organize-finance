@@ -5,6 +5,8 @@ import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Faturas } from './pages/Faturas';
 import { AuthPage } from './pages/Auth';
+import { Reminders } from './pages/Reminders';
+import { Calendar } from './pages/Calendar';
 import { Loader2 } from 'lucide-react';
 
 function App() {
@@ -49,8 +51,8 @@ function App() {
                     <Route element={<Layout />}>
                         <Route path="/" element={<Dashboard />} />
                         <Route path="/faturas" element={<Faturas />} />
-                        <Route path="/lembretes" element={<Dashboard />} />
-                        <Route path="/calendario" element={<Dashboard />} />
+                        <Route path="/lembretes" element={<Reminders />} />
+                        <Route path="/calendario" element={<Calendar />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Route>
                 )}

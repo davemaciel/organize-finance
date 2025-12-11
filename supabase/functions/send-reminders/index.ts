@@ -17,78 +17,127 @@ Deno.serve(async (req) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        // 1. Calculate target dates
-        const today = new Date()
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
 
-        const date1Day = new Date(today)
-        date1Day.setDate(today.getDate() + 1)
-        const date1Str = date1Day.toISOString().split('T')[0]
+        const getTargetDate = (daysToAdd) => {
+            const d = new Date(now);
+            d.setDate(now.getDate() + daysToAdd);
+            return d.toISOString().split('T')[0];
+        };
 
-        const date3Days = new Date(today)
-        date3Days.setDate(today.getDate() + 3)
-        const date3Str = date3Days.toISOString().split('T')[0]
+        const targetDates = [
+            { days: 0, str: todayStr, title: '⚠️ É HOJE!', bodyPrefix: 'Vence hoje: ' },
+            { days: 1, str: getTargetDate(1), title: '🕒 É amanhã', bodyPrefix: 'Vence amanhã: ' },
+            { days: 3, str: getTargetDate(3), title: '📅 Faltam 3 dias', bodyPrefix: 'Em 3 dias: ' },
+            { days: 7, str: getTargetDate(7), title: '🗓️ Próxima semana', bodyPrefix: 'Em 1 semana: ' },
+        ];
 
-        const date7Days = new Date(today)
-        date7Days.setDate(today.getDate() + 7)
-        const date7Str = date7Days.toISOString().split('T')[0]
+        const targetDateStrings = targetDates.map(t => t.str);
 
-        // 2. Fetch bills matching these dates
-        const { data: faturas, error: faturasError } = await supabaseWithServiceKey
-            .from('faturas')
-            .select('id, description, value, due_date, user_id')
-            .in('due_date', [date1Str, date3Str, date7Str])
+        // 1. Fetch Invoices
+        const { data: invoices, error: invoicesError } = await supabaseWithServiceKey
+            .from('invoices')
+            .select(`
+                id, amount, due_date, status, user_id,
+                credit_cards (name)
+            `)
+            .in('due_date', targetDateStrings)
+            .in('status', ['open', 'overdue']); // Only remind for open or overdue
 
-        if (faturasError) throw faturasError
+        if (invoicesError) throw invoicesError;
 
-        if (!faturas || faturas.length === 0) {
-            return new Response(JSON.stringify({ message: 'No bills due in 1, 3 or 7 days' }), {
+        // 2. Fetch Debts
+        // Debts are trickier because of recurring logic. For now, let's handle single debts with specific due dates.
+        const { data: debts, error: debtsError } = await supabaseWithServiceKey
+            .from('debts')
+            .select('*')
+            .gt('remaining_amount', 0); // Only active debts
+
+        if (debtsError) throw debtsError;
+
+        const paymentsToNotify = [];
+
+        // Process Invoices
+        if (invoices) {
+            invoices.forEach(inv => {
+                const target = targetDates.find(t => t.str === inv.due_date);
+                if (target) {
+                    paymentsToNotify.push({
+                        user_id: inv.user_id,
+                        title: target.title,
+                        body: `${target.bodyPrefix}Fatura do cartão ${inv.credit_cards?.name || 'Desconhecido'} - R$ ${inv.amount.toFixed(2)}`,
+                        url: '/faturas'
+                    });
+                }
+            });
+        }
+
+        // Process Debts (Simple check for specific dates for single debts, or recurring day match)
+        if (debts) {
+            debts.forEach(debt => {
+                let matchDateIdx = -1;
+                let paymentAmount = 0;
+
+                if (debt.debt_type === 'single' && debt.specific_due_date) {
+                    matchDateIdx = targetDates.findIndex(t => t.str === debt.specific_due_date);
+                    paymentAmount = debt.total_amount;
+                } else if (debt.due_day) {
+                    // Recurring: check if target date day matches due_day
+                    // This is simplified. Ideally we check month overflow etc.
+                    // But for "upcoming in X days" we check if the target date's day matches.
+                    matchDateIdx = targetDates.findIndex(t => {
+                        const tDate = new Date(t.str + 'T12:00:00'); // Safe parsing
+                        return tDate.getDate() === debt.due_day;
+                    });
+                    paymentAmount = debt.minimum_payment || 0;
+                }
+
+                if (matchDateIdx !== -1) {
+                    const target = targetDates[matchDateIdx];
+                    paymentsToNotify.push({
+                        user_id: debt.user_id,
+                        title: target.title,
+                        body: `${target.bodyPrefix}Pagamento de ${debt.name} - R$ ${paymentAmount.toFixed(2)}`,
+                        url: '/dashboard' // or where debts are managed
+                    });
+                }
+            });
+        }
+
+        if (paymentsToNotify.length === 0) {
+            return new Response(JSON.stringify({ message: 'No payments due in target range' }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             })
         }
 
         const vapidSubject = 'mailto:admin@example.com'
         const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || 'BDT2eGBz_mdBbTPuLhUHHfWKD-E0XffvsgO7d2kI7W634RjM9N0jXUq62P-t9gJ-zR1w36p5T-S78g3Z-p5zXhE'
-        const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || 'B_JOnJb-MfNaTDBPYRb7bljeAcwwtSKUGynGBi-1o3E'
-
-        if (!vapidPublicKey || !vapidPrivateKey) {
-            throw new Error('VAPID keys not set')
-        }
+        const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || 'B_JOnJb-MfNaTDBPYRb7bljeAcwwtSKUGynGBi-1o3E' // WARNING: This should be env var only
 
         webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
 
         const results = []
 
-        // 3. Loop through bills and notify
-        for (const fatura of faturas) {
-            // Determine message based on days remaining
-            let title = 'Lembrete de Fatura'
-            let body = `Sua fatura de R$ ${fatura.value} vence em breve.`
-
-            if (fatura.due_date === date1Str) {
-                title = '⚠️ É amanhã!'
-                body = `A fatura "${fatura.description}" vence AMANHÃ! Pague agora para evitar juros.`
-            } else if (fatura.due_date === date3Str) {
-                title = '📅 Faltam 3 dias'
-                body = `Falta pouco para o vencimento de "${fatura.description}". Adiantar o pagamento ajuda a organizar suas finanças!`
-            } else if (fatura.due_date === date7Str) {
-                title = '🗓️ Vence em 1 semana'
-                body = `Sua fatura "${fatura.description}" vence em 7 dias. Que tal já se planejar para ficar tranquilo?`
-            }
-
+        for (const payment of paymentsToNotify) {
             const { data: subs, error: subsError } = await supabaseWithServiceKey
                 .from('push_subscriptions')
                 .select('*')
-                .eq('user_id', fatura.user_id)
+                .eq('user_id', payment.user_id)
 
-            if (subsError) continue
+            if (subsError || !subs) continue;
 
-            const payload = JSON.stringify({ title, body, url: '/faturas' })
+            const payload = JSON.stringify({
+                title: payment.title,
+                body: payment.body,
+                url: payment.url
+            })
 
             for (const sub of subs) {
                 try {
                     const pushSubscription = { endpoint: sub.endpoint, keys: sub.keys }
                     await webpush.sendNotification(pushSubscription, payload)
-                    results.push({ success: true, user: fatura.user_id })
+                    results.push({ success: true, user: payment.user_id })
                 } catch (err) {
                     console.error('Failed to send push', err)
                     if (err.statusCode === 410) {
