@@ -234,10 +234,10 @@ export function Faturas() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-2 border-b border-border">
+            <div className="flex gap-2 border-b border-border overflow-x-auto pb-1">
                 <button
                     onClick={() => setActiveTab('cartoes')}
-                    className={`px-4 py-2 font-medium transition-colors relative ${activeTab === 'cartoes'
+                    className={`px-4 py-2 font-medium transition-colors relative whitespace-nowrap ${activeTab === 'cartoes'
                         ? 'text-primary'
                         : 'text-muted-foreground hover:text-foreground'
                         }`}
@@ -249,7 +249,7 @@ export function Faturas() {
                 </button>
                 <button
                     onClick={() => setActiveTab('emprestimos')}
-                    className={`px-4 py-2 font-medium transition-colors relative ${activeTab === 'emprestimos'
+                    className={`px-4 py-2 font-medium transition-colors relative whitespace-nowrap ${activeTab === 'emprestimos'
                         ? 'text-primary'
                         : 'text-muted-foreground hover:text-foreground'
                         }`}
@@ -266,7 +266,7 @@ export function Faturas() {
                 <div className="space-y-6">
                     <button
                         onClick={() => setShowAddCard(true)}
-                        className="bg-primary text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/90"
+                        className="bg-primary text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/90 w-full md:w-auto justify-center"
                     >
                         <Plus size={18} /> Adicionar Cartão
                     </button>
@@ -274,7 +274,7 @@ export function Faturas() {
                     {showAddCard && (
                         <div className="p-6 rounded-xl bg-card border border-border shadow-sm">
                             <h3 className="font-semibold mb-4">Novo Cartão</h3>
-                            <form onSubmit={handleAddCard} className="grid gap-4 md:grid-cols-4 items-end">
+                            <form onSubmit={handleAddCard} className="grid gap-4 grid-cols-1 md:grid-cols-4 items-end">
                                 <div>
                                     <label className="block text-sm font-medium mb-1">Nome do Cartão</label>
                                     <input
@@ -321,7 +321,7 @@ export function Faturas() {
                         </div>
                     )}
 
-                    <div className="grid gap-6 md:grid-cols-2">
+                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
                         {cards.map(card => (
                             <div key={card.id} className="p-6 rounded-xl bg-card border border-border shadow-sm">
                                 <div className="flex items-start justify-between mb-4">
@@ -354,7 +354,7 @@ export function Faturas() {
 
                                 {showAddInvoice === card.id ? (
                                     <form onSubmit={(e) => handleAddInvoice(e, card.id)} className="space-y-3 mt-4 pt-4 border-t border-border">
-                                        <div className="grid grid-cols-3 gap-2">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                             <div>
                                                 <label className="block text-xs font-medium mb-1">Mês</label>
                                                 <select
@@ -418,7 +418,7 @@ export function Faturas() {
                             <p className="text-muted-foreground mb-4">Nenhum cartão cadastrado.</p>
                             <button
                                 onClick={() => setShowAddCard(true)}
-                                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg inline-flex items-center gap-2"
+                                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg inline-flex items-center gap-2 w-full md:w-auto justify-center"
                             >
                                 <Plus size={18} /> Adicionar Primeiro Cartão
                             </button>
@@ -432,7 +432,7 @@ export function Faturas() {
                 <div className="space-y-6">
                     <button
                         onClick={() => setShowAddDebt(true)}
-                        className="bg-primary text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/90"
+                        className="bg-primary text-primary-foreground px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-primary/90 w-full md:w-auto justify-center"
                     >
                         <Plus size={18} /> Adicionar Empréstimo
                     </button>
@@ -444,7 +444,7 @@ export function Faturas() {
                                 {/* Tipo de Empréstimo */}
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Tipo de Pagamento</label>
-                                    <div className="flex gap-4">
+                                    <div className="flex flex-col md:flex-row gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input
                                                 type="radio"
@@ -470,7 +470,7 @@ export function Faturas() {
                                     </div>
                                 </div>
 
-                                <div className="grid gap-4 md:grid-cols-3">
+                                <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Nome</label>
                                         <input
@@ -558,7 +558,7 @@ export function Faturas() {
                         </div>
                     )}
 
-                    <div className="grid gap-6 md:grid-cols-2">
+                    <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
                         {debts.map(debt => {
                             const progress = ((debt.total_amount - debt.remaining_amount) / debt.total_amount) * 100;
 
@@ -641,7 +641,7 @@ export function Faturas() {
                             <p className="text-muted-foreground mb-4">Nenhum empréstimo cadastrado.</p>
                             <button
                                 onClick={() => setShowAddDebt(true)}
-                                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg inline-flex items-center gap-2"
+                                className="bg-primary text-primary-foreground px-4 py-2 rounded-lg inline-flex items-center gap-2 w-full md:w-auto justify-center"
                             >
                                 <Plus size={18} /> Adicionar Primeiro Empréstimo
                             </button>

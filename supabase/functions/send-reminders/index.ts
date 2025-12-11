@@ -17,73 +17,81 @@ Deno.serve(async (req) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        // 1. Get bills due tomorrow (or today, logic depends on preference)
-        // For this example, let's find bills due 'tomorrow'
-        const tomorrow = new Date()
-        tomorrow.setDate(tomorrow.getDate() + 1)
-        const dateString = tomorrow.toISOString().split('T')[0] // YYYY-MM-DD
+        // 1. Calculate target dates
+        const today = new Date()
 
+        const date1Day = new Date(today)
+        date1Day.setDate(today.getDate() + 1)
+        const date1Str = date1Day.toISOString().split('T')[0]
+
+        const date3Days = new Date(today)
+        date3Days.setDate(today.getDate() + 3)
+        const date3Str = date3Days.toISOString().split('T')[0]
+
+        const date7Days = new Date(today)
+        date7Days.setDate(today.getDate() + 7)
+        const date7Str = date7Days.toISOString().split('T')[0]
+
+        // 2. Fetch bills matching these dates
         const { data: faturas, error: faturasError } = await supabaseWithServiceKey
             .from('faturas')
             .select('id, description, value, due_date, user_id')
-            .eq('due_date', dateString)
-        // .eq('paid', false) // Use this if you have a 'paid' column
+            .in('due_date', [date1Str, date3Str, date7Str])
 
         if (faturasError) throw faturasError
 
         if (!faturas || faturas.length === 0) {
-            return new Response(JSON.stringify({ message: 'No bills due tomorrow' }), {
+            return new Response(JSON.stringify({ message: 'No bills due in 1, 3 or 7 days' }), {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             })
         }
 
-        // 2. Configure Web Push
-        // Ensure you set these secrets in your Supabase Dashboard
         const vapidSubject = 'mailto:admin@example.com'
-        const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY')
-        const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY')
+        const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY') || 'BDT2eGBz_mdBbTPuLhUHHfWKD-E0XffvsgO7d2kI7W634RjM9N0jXUq62P-t9gJ-zR1w36p5T-S78g3Z-p5zXhE'
+        const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY') || 'B_JOnJb-MfNaTDBPYRb7bljeAcwwtSKUGynGBi-1o3E'
 
         if (!vapidPublicKey || !vapidPrivateKey) {
-            throw new Error('VAPID keys not set in Edge Function secrets')
+            throw new Error('VAPID keys not set')
         }
 
         webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey)
 
         const results = []
 
-        // 3. Loop through bills and notify users
+        // 3. Loop through bills and notify
         for (const fatura of faturas) {
-            // Get subscriptions for this user
+            // Determine message based on days remaining
+            let title = 'Lembrete de Fatura'
+            let body = `Sua fatura de R$ ${fatura.value} vence em breve.`
+
+            if (fatura.due_date === date1Str) {
+                title = '⚠️ É amanhã!'
+                body = `A fatura "${fatura.description}" vence AMANHÃ! Pague agora para evitar juros.`
+            } else if (fatura.due_date === date3Str) {
+                title = '📅 Faltam 3 dias'
+                body = `Falta pouco para o vencimento de "${fatura.description}". Adiantar o pagamento ajuda a organizar suas finanças!`
+            } else if (fatura.due_date === date7Str) {
+                title = '🗓️ Vence em 1 semana'
+                body = `Sua fatura "${fatura.description}" vence em 7 dias. Que tal já se planejar para ficar tranquilo?`
+            }
+
             const { data: subs, error: subsError } = await supabaseWithServiceKey
                 .from('push_subscriptions')
                 .select('*')
                 .eq('user_id', fatura.user_id)
 
-            if (subsError) {
-                console.error('Error fetching subs for user', fatura.user_id, subsError)
-                continue
-            }
+            if (subsError) continue
 
-            const payload = JSON.stringify({
-                title: 'Fatura Vencendo!',
-                body: `A fatura "${fatura.description}" de R$ ${fatura.value} vence amanhã!`,
-                url: `/faturas` // Deep link if supported
-            })
+            const payload = JSON.stringify({ title, body, url: '/faturas' })
 
             for (const sub of subs) {
                 try {
-                    // Construct the subscription object expected by web-push
-                    const pushSubscription = {
-                        endpoint: sub.endpoint,
-                        keys: sub.keys
-                    }
-
+                    const pushSubscription = { endpoint: sub.endpoint, keys: sub.keys }
                     await webpush.sendNotification(pushSubscription, payload)
                     results.push({ success: true, user: fatura.user_id })
                 } catch (err) {
                     console.error('Failed to send push', err)
                     if (err.statusCode === 410) {
-                        // Subscription expired, remove it
                         await supabaseWithServiceKey.from('push_subscriptions').delete().eq('id', sub.id)
                     }
                     results.push({ success: false, error: err.message })

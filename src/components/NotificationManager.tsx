@@ -56,6 +56,24 @@ export function NotificationManager() {
         }
     }
 
+    async function handleTestNotification() {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        if (!confirm('Vou mandar uma notificação de teste agora. Pode ser?')) return
+
+        try {
+            const { error } = await supabase.functions.invoke('send-test-notification', {
+                body: { user_id: user.id }
+            })
+            if (error) throw error
+            alert('Notificação enviada! Verifique seu celular/PC em alguns segundos.')
+        } catch (err) {
+            console.error(err)
+            alert('Erro ao enviar teste.')
+        }
+    }
+
     if (permission === 'denied') {
         return (
             <div className="p-4 bg-red-50 text-red-700 rounded-md text-sm">
@@ -66,8 +84,16 @@ export function NotificationManager() {
 
     if (subscribed) {
         return (
-            <div className="p-4 bg-green-50 text-green-700 rounded-md text-sm flex items-center gap-2">
-                <span>✓</span> Notificações ativadas para este dispositivo.
+            <div className="flex flex-col gap-2">
+                <div className="p-4 bg-green-50 text-green-700 rounded-md text-sm flex items-center gap-2">
+                    <span>✓</span> Notificações ativadas para este dispositivo.
+                </div>
+                <button
+                    onClick={handleTestNotification}
+                    className="text-xs text-muted-foreground underline hover:text-primary self-start"
+                >
+                    Testar Notificação Agora
+                </button>
             </div>
         )
     }
