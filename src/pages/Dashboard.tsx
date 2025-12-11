@@ -174,11 +174,13 @@ export function Dashboard() {
                                     </div>
                                     <div>
                                         <h4 className="font-semibold">{payment.name}</h4>
-                                        <p className="text-sm text-muted-foreground flex items-center gap-2">
-                                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted">
+                                        <p className="text-sm text-muted-foreground flex flex-wrap items-center gap-2">
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-muted whitespace-nowrap">
                                                 {payment.type === 'invoice' ? 'Fatura' : payment.is_single ? 'Parcela Única' : 'Empréstimo'}
                                             </span>
-                                            Vencimento: {format(new Date(payment.due_date), "dd 'de' MMMM", { locale: ptBR })}
+                                            <span className="whitespace-nowrap">
+                                                Vencimento: {format(new Date(payment.due_date), "dd 'de' MMMM", { locale: ptBR })}
+                                            </span>
                                         </p>
                                     </div>
                                 </div>
