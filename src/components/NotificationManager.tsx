@@ -72,6 +72,25 @@ export function NotificationManager() {
         }
     }
 
+    async function handleLocalTest() {
+        if (permission !== 'granted') {
+            const newPermission = await requestNotificationPermission()
+            setPermission(newPermission)
+            if (newPermission !== 'granted') return
+        }
+
+        try {
+            new Notification('Teste Local 🏠', {
+                body: 'Se você viu isso, o navegador consegue exibir notificações!',
+                icon: '/pwa-192x192.png'
+            })
+            setModalMessage({ title: 'Enviado Localmente', body: 'Uma notificação deve ter aparecido agora mesmo.' })
+        } catch (e: any) {
+            console.error(e)
+            setModalMessage({ title: 'Erro Local', body: `Erro ao criar notificação local: ${e.message}` })
+        }
+    }
+
     if (permission === 'denied') {
         return (
             <div className="p-4 bg-red-50 text-red-700 rounded-md text-sm">
@@ -86,9 +105,9 @@ export function NotificationManager() {
                 isOpen={showConfirmTest}
                 onClose={() => setShowConfirmTest(false)}
                 onConfirm={executeTestNotification}
-                title="Testar Notificação"
-                description="Vou enviar uma notificação de teste para este dispositivo agora. Pode ser?"
-                confirmText="Enviar"
+                title="Testar Notificação (Push)"
+                description="Vou enviar um sinal via internet para chegar no seu celular. Pode demorar alguns segundos."
+                confirmText="Enviar Push"
             />
 
             <Modal
@@ -112,14 +131,22 @@ export function NotificationManager() {
                     <div className="p-4 bg-green-50 text-green-700 rounded-md text-sm flex items-center gap-2">
                         <span>✓</span> Notificações ativadas para este dispositivo.
                     </div>
-                    <button
-                        onClick={() => setShowConfirmTest(true)}
-                        className="text-xs text-muted-foreground underline hover:text-primary self-start"
-                    >
-                        Testar Notificação Agora
-                    </button>
+                    <div className="flex gap-4">
+                        <button
+                            onClick={() => setShowConfirmTest(true)}
+                            className="text-xs text-muted-foreground underline hover:text-primary"
+                        >
+                            Testar Via Internet (Push)
+                        </button>
+                        <button
+                            onClick={handleLocalTest}
+                            className="text-xs text-muted-foreground underline hover:text-primary"
+                        >
+                            Testar Localmente
+                        </button>
+                    </div>
                     <div className="text-[10px] text-muted-foreground mt-1">
-                        Se não receber, verifique se o "Não Perturbe" está ativo ou se o navegador bloqueou.
+                        Se "Local" funcionar mas "Internet" não, pode ser problema na conexão ou bloqueio do Android.
                     </div>
                 </div>
             ) : (
