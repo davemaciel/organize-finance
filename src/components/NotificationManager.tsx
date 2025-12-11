@@ -68,9 +68,9 @@ export function NotificationManager() {
             })
             if (error) throw error
             alert('Notificação enviada! Verifique seu celular/PC em alguns segundos.')
-        } catch (err) {
+        } catch (err: any) {
             console.error(err)
-            alert('Erro ao enviar teste.')
+            alert(`Erro ao enviar teste: ${err.message || JSON.stringify(err)}`)
         }
     }
 
