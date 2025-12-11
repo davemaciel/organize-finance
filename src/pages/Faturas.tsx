@@ -2,13 +2,12 @@ import { useEffect, useState } from 'react';
 import { NotificationManager } from '../components/NotificationManager';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/database.types';
-import { Plus, CreditCard as CardIcon, DollarSign, Edit2, Trash2, X } from 'lucide-react';
+import { Plus, CreditCard as CardIcon, DollarSign, Edit2, Trash2, X, TrendingDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Modal, ConfirmModal } from '../components/Modal';
 
 type CreditCard = Database['public']['Tables']['credit_cards']['Row'];
-type Invoice = Database['public']['Tables']['invoices']['Row'];
 type Debt = Database['public']['Tables']['debts']['Row'];
 
 export function Faturas() {
@@ -39,7 +38,16 @@ export function Faturas() {
         minimum_payment: 0,
         due_day: 10,
         debt_type: 'recurring' as 'recurring' | 'single',
-        specific_due_date: ''
+        specific_due_date: '',
+        total_installments: '' as string | number,
+        installments_paid: '' as string | number
+    });
+
+    // Anticipation State
+    const [anticipationModal, setAnticipationModal] = useState<Debt | null>(null);
+    const [anticipationData, setAnticipationData] = useState({
+        installments_to_pay: 1,
+        amount_paid: 0
     });
     const [showAddInvoice, setShowAddInvoice] = useState<string | null>(null);
     const [newInvoice, setNewInvoice] = useState({
@@ -139,11 +147,15 @@ export function Faturas() {
             user_id: user.id,
             name: newDebt.name,
             total_amount: newDebt.total_amount,
-            remaining_amount: newDebt.remaining_amount || newDebt.total_amount,
+            remaining_amount: newDebt.debt_type === 'recurring' && newDebt.installments_paid && newDebt.minimum_payment
+                ? newDebt.total_amount - (Number(newDebt.installments_paid) * newDebt.minimum_payment)
+                : (newDebt.remaining_amount || newDebt.total_amount),
             minimum_payment: newDebt.minimum_payment,
             due_day: newDebt.debt_type === 'recurring' ? newDebt.due_day : null,
             debt_type: newDebt.debt_type,
-            specific_due_date: newDebt.debt_type === 'single' ? newDebt.specific_due_date : null
+            specific_due_date: newDebt.debt_type === 'single' ? newDebt.specific_due_date : null,
+            total_installments: newDebt.total_installments ? Number(newDebt.total_installments) : null,
+            installments_paid: newDebt.installments_paid ? Number(newDebt.installments_paid) : 0
         });
 
         if (!error) {
@@ -155,7 +167,9 @@ export function Faturas() {
                 minimum_payment: 0,
                 due_day: 10,
                 debt_type: 'recurring',
-                specific_due_date: ''
+                specific_due_date: '',
+                total_installments: '',
+                installments_paid: ''
             });
             fetchDebts();
             setModalMessage({ title: 'Sucesso', body: 'Empréstimo adicionado!' });
@@ -175,7 +189,9 @@ export function Faturas() {
                 minimum_payment: editingDebt.minimum_payment,
                 due_day: editingDebt.debt_type === 'recurring' ? editingDebt.due_day : null,
                 debt_type: editingDebt.debt_type,
-                specific_due_date: editingDebt.debt_type === 'single' ? editingDebt.specific_due_date : null
+                specific_due_date: editingDebt.debt_type === 'single' ? editingDebt.specific_due_date : null,
+                total_installments: editingDebt.total_installments,
+                installments_paid: editingDebt.installments_paid
             })
             .eq('id', editingDebt.id);
 
@@ -220,6 +236,33 @@ export function Faturas() {
             setShowAddInvoice(null);
             setNewInvoice({ month: new Date().getMonth() + 1, year: new Date().getFullYear(), amount: 0 });
             setModalMessage({ title: 'Fatura Adicionada', body: 'A fatura foi registrada com sucesso.' });
+        }
+    };
+
+    const handleAnticipate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!anticipationModal) return;
+
+        const debtReduction = anticipationData.installments_to_pay * (anticipationModal.minimum_payment || 0);
+        const newRemaining = Math.max(0, anticipationModal.remaining_amount - debtReduction);
+        const newPaidCount = (anticipationModal.installments_paid || 0) + anticipationData.installments_to_pay;
+
+        const { error } = await supabase
+            .from('debts')
+            .update({
+                remaining_amount: newRemaining,
+                installments_paid: newPaidCount
+            })
+            .eq('id', anticipationModal.id);
+
+        if (!error) {
+            setAnticipationModal(null);
+            fetchDebts();
+            setModalMessage({
+                title: 'Antecipação Realizada',
+                body: `Você antecipou ${anticipationData.installments_to_pay} parcelas. O saldo devedor foi reduzido em R$ ${debtReduction.toFixed(2)}.`
+            });
+            setAnticipationData({ installments_to_pay: 1, amount_paid: 0 });
         }
     };
 
@@ -549,6 +592,32 @@ export function Faturas() {
                                     )}
                                 </div>
 
+                                {newDebt.debt_type === 'recurring' && (
+                                    <div className="grid gap-4 grid-cols-1 md:grid-cols-2 bg-secondary/30 p-4 rounded-lg">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Total de Parcelas (Opcional)</label>
+                                            <input
+                                                type="number"
+                                                className="w-full px-3 py-2 rounded-lg bg-secondary"
+                                                value={newDebt.total_installments}
+                                                onChange={e => setNewDebt({ ...newDebt, total_installments: parseInt(e.target.value) || '' })}
+                                                placeholder="Ex: 12"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1">Parcelas Já Pagas</label>
+                                            <input
+                                                type="number"
+                                                className="w-full px-3 py-2 rounded-lg bg-secondary"
+                                                value={newDebt.installments_paid}
+                                                onChange={e => setNewDebt({ ...newDebt, installments_paid: parseInt(e.target.value) || '' })}
+                                                placeholder="Ex: 2"
+                                            />
+                                            <p className="text-xs text-muted-foreground mt-1">Isso ajustará o saldo devedor automaticamente.</p>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {newDebt.debt_type === 'recurring' ? (
                                     <div>
                                         <label className="block text-sm font-medium mb-1">Dia do Vencimento (todo mês)</label>
@@ -588,7 +657,9 @@ export function Faturas() {
                                                 minimum_payment: 0,
                                                 due_day: 10,
                                                 debt_type: 'recurring',
-                                                specific_due_date: ''
+                                                specific_due_date: '',
+                                                total_installments: '',
+                                                installments_paid: ''
                                             });
                                         }}
                                         className="px-4 py-2 rounded-lg bg-secondary"
@@ -630,6 +701,21 @@ export function Faturas() {
                                             >
                                                 <Edit2 size={18} />
                                             </button>
+                                            {debt.debt_type === 'recurring' && (
+                                                <button
+                                                    onClick={() => {
+                                                        setAnticipationModal(debt);
+                                                        setAnticipationData({
+                                                            installments_to_pay: 1,
+                                                            amount_paid: debt.minimum_payment || 0
+                                                        });
+                                                    }}
+                                                    className="text-muted-foreground hover:text-green-500 transition-colors"
+                                                    title="Antecipar Parcelas"
+                                                >
+                                                    <TrendingDown size={18} />
+                                                </button>
+                                            )}
                                             <button
                                                 onClick={() => setDeleteConfirmation({ type: 'debt', id: debt.id })}
                                                 className="text-muted-foreground hover:text-destructive transition-colors"
@@ -652,6 +738,12 @@ export function Faturas() {
                                                     <span className="text-sm text-muted-foreground">Parcela Mensal</span>
                                                     <span className="font-semibold text-orange-500">R$ {debt.minimum_payment?.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                                 </div>
+                                                {debt.total_installments && (
+                                                    <div className="flex justify-between">
+                                                        <span className="text-sm text-muted-foreground">Parcelas</span>
+                                                        <span className="font-semibold text-blue-400">{(debt.installments_paid || 0) + 1}/{debt.total_installments}</span>
+                                                    </div>
+                                                )}
                                                 <div className="flex justify-between">
                                                     <span className="text-sm text-muted-foreground">Saldo Restante</span>
                                                     <span className="font-bold">R$ {debt.remaining_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -876,6 +968,77 @@ export function Faturas() {
                                 <button
                                     type="button"
                                     onClick={() => setEditingDebt(null)}
+                                    className="px-4 py-3 rounded-lg bg-secondary font-medium"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Antecipação */}
+            {anticipationModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-card rounded-xl p-6 max-w-md w-full border border-border shadow-xl">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-semibold">Antecipar Parcelas</h3>
+                            <button onClick={() => setAnticipationModal(null)} className="text-muted-foreground hover:text-foreground">
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-6">
+                            Registre o pagamento antecipado de parcelas. O saldo devedor será reduzido proporcionalmente.
+                        </p>
+                        <form onSubmit={handleAnticipate} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Quantas parcelas deseja antecipar?</label>
+                                <input
+                                    type="number" min="1"
+                                    className="w-full px-3 py-2 rounded-lg bg-secondary"
+                                    value={anticipationData.installments_to_pay}
+                                    onChange={e => {
+                                        const count = parseInt(e.target.value) || 1;
+                                        setAnticipationData({
+                                            ...anticipationData,
+                                            installments_to_pay: count,
+                                            amount_paid: count * (anticipationModal.minimum_payment || 0)
+                                        });
+                                    }}
+                                    required
+                                />
+                            </div>
+
+                            <div className="bg-secondary/30 p-4 rounded-lg space-y-2">
+                                <div className="flex justify-between text-sm">
+                                    <span>Valor Original da Dívida</span>
+                                    <span className="font-semibold">
+                                        R$ {(anticipationData.installments_to_pay * (anticipationModal.minimum_payment || 0)).toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="border-t border-border my-2"></div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Valor Efetivamente Pago (com desconto)</label>
+                                    <input
+                                        type="number" step="0.01"
+                                        className="w-full px-3 py-2 rounded-lg bg-secondary bg-white/5"
+                                        value={anticipationData.amount_paid}
+                                        onChange={e => setAnticipationData({ ...anticipationData, amount_paid: parseFloat(e.target.value) })}
+                                    />
+                                </div>
+                                <div className="text-xs text-green-400 text-right pt-2">
+                                    Economia: R$ {Math.max(0, (anticipationData.installments_to_pay * (anticipationModal.minimum_payment || 0)) - anticipationData.amount_paid).toFixed(2)}
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <button type="submit" className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg font-medium transition-colors">
+                                    Confirmar Pagamento
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setAnticipationModal(null)}
                                     className="px-4 py-3 rounded-lg bg-secondary font-medium"
                                 >
                                     Cancelar

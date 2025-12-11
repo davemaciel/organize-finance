@@ -66,6 +66,8 @@ export type Database = {
                     specific_due_date: string | null
                     total_amount: number
                     user_id: string
+                    total_installments: number | null
+                    installments_paid: number | null
                 }
                 Insert: {
                     created_at?: string
@@ -79,6 +81,8 @@ export type Database = {
                     specific_due_date?: string | null
                     total_amount: number
                     user_id: string
+                    total_installments?: number | null
+                    installments_paid?: number | 11
                 }
                 Update: {
                     created_at?: string
@@ -92,6 +96,8 @@ export type Database = {
                     specific_due_date?: string | null
                     total_amount?: number
                     user_id?: string
+                    total_installments?: number | null
+                    installments_paid?: number | null
                 }
                 Relationships: [
                     {
